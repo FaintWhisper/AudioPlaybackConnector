@@ -17,6 +17,7 @@ constexpr UINT WM_CONNECTION_STATE_CHANGED = WM_APP + 3;
 
 struct ConnectionStateChange
 {
+	std::wstring deviceId;
 	AudioPlaybackConnection connection;
 	AudioPlaybackConnectionState state;
 };

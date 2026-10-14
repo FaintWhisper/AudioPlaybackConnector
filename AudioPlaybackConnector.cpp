@@ -13,7 +13,7 @@ void UpdateConnectionUi();
 void SetupSvgIcon();
 void UpdateNotifyIcon();
 bool HasOpenConnection();
-void OnConnectionStateChanged(AudioPlaybackConnection, AudioPlaybackConnectionState);
+void OnConnectionStateChanged(const std::wstring&, AudioPlaybackConnection, AudioPlaybackConnectionState);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	_In_opt_ HINSTANCE hPrevInstance,
@@ -181,7 +181,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_CONNECTION_STATE_CHANGED:
 		{
 			std::unique_ptr<ConnectionStateChange> change(reinterpret_cast<ConnectionStateChange*>(lParam));
-			OnConnectionStateChanged(change->connection, change->state);
+			OnConnectionStateChanged(change->deviceId, change->connection, change->state);
 		}
 		break;
 	default:
@@ -306,13 +306,12 @@ void SetupMenu()
 	g_xamlMenu = menu;
 }
 
-void OnConnectionStateChanged(AudioPlaybackConnection connection, AudioPlaybackConnectionState state)
+void OnConnectionStateChanged(const std::wstring& deviceId, AudioPlaybackConnection connection, AudioPlaybackConnectionState state)
 {
 	if (g_closing)
 		return;
 	try
 	{
-		const std::wstring deviceId(connection.DeviceId());
 		auto it = g_audioPlaybackConnections.find(deviceId);
 		if (it == g_audioPlaybackConnections.end() || it->second.connection != connection || it->second.restarting)
 			return;
@@ -369,10 +368,11 @@ IAsyncAction ConnectDevice(DeviceInformation device, bool requestOpen)
 			if (!started)
 			{
 				g_audioPlaybackConnections.emplace(deviceId, PlaybackConnection{ device, connection, false, true });
-				connection.StateChanged([window = g_hWnd](const auto& sender, const auto&) {
+				// Avoid AudioPlaybackConnection::DeviceId's borrowed HSTRING bug: microsoft/windows-rs#3845.
+				connection.StateChanged([window = g_hWnd, deviceId](const auto& sender, const auto&) {
 					try
 					{
-						std::unique_ptr<ConnectionStateChange> change(new ConnectionStateChange{ sender, sender.State() });
+						std::unique_ptr<ConnectionStateChange> change(new ConnectionStateChange{ deviceId, sender, sender.State() });
 						if (PostMessageW(window, WM_CONNECTION_STATE_CHANGED, 0, reinterpret_cast<LPARAM>(change.get())))
 							change.release();
 						else
