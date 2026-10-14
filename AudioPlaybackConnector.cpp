@@ -114,6 +114,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 		}
 		Shell_NotifyIconW(NIM_DELETE, &g_nid);
+		DestroyIcon(g_hIconConnected);
+		DestroyIcon(g_hIconDisconnected);
 		PostQuitMessage(0);
 		break;
 	case WM_SETTINGCHANGE:
@@ -328,6 +330,7 @@ winrt::fire_and_forget OnConnectionStateChanged(AudioPlaybackConnection connecti
 				g_audioPlaybackConnections.erase(it);
 			}
 		}
+		UpdateNotifyIcon();
 	}
 	CATCH_LOG();
 }
@@ -362,6 +365,7 @@ IAsyncAction ConnectDevice(DevicePicker picker, DeviceInformation device, bool s
 			{
 				g_audioPlaybackConnections.erase(it);
 				connection.Close();
+				UpdateNotifyIcon();
 				picker.SetDisplayStatus(device, {}, DevicePickerDisplayStatusOptions::None);
 				co_return;
 			}
@@ -424,6 +428,7 @@ IAsyncAction ConnectDevice(DevicePicker picker, DeviceInformation device, bool s
 			g_audioPlaybackConnections.erase(it);
 		if (connection)
 			connection.Close();
+		UpdateNotifyIcon();
 		picker.SetDisplayStatus(device, {}, DevicePickerDisplayStatusOptions::None);
 		co_return;
 	}
@@ -444,6 +449,7 @@ IAsyncAction ConnectDevice(DevicePicker picker, DeviceInformation device, bool s
 		}
 		picker.SetDisplayStatus(device, errorMessage, DevicePickerDisplayStatusOptions::ShowRetryButton);
 	}
+	UpdateNotifyIcon();
 }
 
 winrt::fire_and_forget ConnectDevice(DevicePicker picker, std::wstring deviceId)
@@ -484,6 +490,7 @@ void SetupDevicePicker()
 			g_audioPlaybackConnections.erase(it);
 			connection.Close();
 		}
+		UpdateNotifyIcon();
 		sender.SetDisplayStatus(device, {}, DevicePickerDisplayStatusOptions::None);
 	});
 }
@@ -505,15 +512,22 @@ void SetupSvgIcon()
 	const std::string_view svg(svgData, size);
 	const int width = GetSystemMetrics(SM_CXSMICON), height = GetSystemMetrics(SM_CYSMICON);
 
-	g_hIconLight = SvgTohIcon(svg, width, height, { 0, 0, 0, 1 });
-	g_hIconDark = SvgTohIcon(svg, width, height, { 1, 1, 1, 1 });
+	g_hIconConnected = SvgTohIcon(svg, width, height, { 0.2f, 0.8f, 0.2f, 1 });
+	g_hIconDisconnected = SvgTohIcon(svg, width, height, { 0.9f, 0.2f, 0.2f, 1 });
 }
 
 void UpdateNotifyIcon()
 {
-	DWORD value = 0, cbValue = sizeof(value);
-	LOG_IF_WIN32_ERROR(RegGetValueW(HKEY_CURRENT_USER, LR"(Software\Microsoft\Windows\CurrentVersion\Themes\Personalize)", L"SystemUsesLightTheme", RRF_RT_REG_DWORD, nullptr, &value, &cbValue));
-	g_nid.hIcon = value != 0 ? g_hIconLight : g_hIconDark;
+	bool connected = false;
+	for (const auto& connection : g_audioPlaybackConnections)
+	{
+		if (connection.second.second.State() == AudioPlaybackConnectionState::Opened)
+		{
+			connected = true;
+			break;
+		}
+	}
+	g_nid.hIcon = connected ? g_hIconConnected : g_hIconDisconnected;
 
 	if (!Shell_NotifyIconW(NIM_MODIFY, &g_nid))
 	{
