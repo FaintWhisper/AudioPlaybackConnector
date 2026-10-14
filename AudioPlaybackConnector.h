@@ -13,9 +13,13 @@ namespace fs = std::filesystem;
 
 constexpr UINT WM_NOTIFYICON = WM_APP + 1;
 constexpr UINT WM_CONNECTDEVICE = WM_APP + 2;
-constexpr UINT_PTR STARTUP_CONNECT_TIMER = 1;
-constexpr UINT STARTUP_CONNECT_INTERVAL = 5000;
-constexpr unsigned int STARTUP_CONNECT_ATTEMPTS = 12;
+constexpr UINT WM_CONNECTION_STATE_CHANGED = WM_APP + 3;
+
+struct ConnectionStateChange
+{
+	AudioPlaybackConnection connection;
+	AudioPlaybackConnectionState state;
+};
 
 HINSTANCE g_hInst;
 HWND g_hWnd;
@@ -25,7 +29,14 @@ Flyout g_xamlFlyout = nullptr;
 MenuFlyout g_xamlMenu = nullptr;
 FocusState g_menuFocusState = FocusState::Unfocused;
 DevicePicker g_devicePicker = nullptr;
-std::unordered_map<std::wstring, std::pair<DeviceInformation, AudioPlaybackConnection>> g_audioPlaybackConnections;
+struct PlaybackConnection
+{
+	DeviceInformation device;
+	AudioPlaybackConnection connection;
+	bool connected = false;
+	bool opening = false;
+};
+std::unordered_map<std::wstring, PlaybackConnection> g_audioPlaybackConnections;
 HICON g_hIconConnected = nullptr;
 HICON g_hIconDisconnected = nullptr;
 NOTIFYICONDATAW g_nid = {
@@ -40,10 +51,9 @@ NOTIFYICONIDENTIFIER g_niid = {
 UINT WM_TASKBAR_CREATED = 0;
 bool g_reconnect = true;
 std::vector<std::wstring> g_lastDevices;
-bool g_startupConnecting = false;
-bool g_startupAutoConnect = false;
+bool g_resolvingDevice = false;
 bool g_closing = false;
-unsigned int g_startupConnectAttempts = 0;
+std::wstring g_connectionError;
 
 #include "Util.hpp"
 #include "I18n.hpp"

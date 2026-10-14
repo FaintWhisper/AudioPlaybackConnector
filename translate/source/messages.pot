@@ -67,3 +67,9 @@ msgstr ""
 #: AudioPlaybackConnector.cpp:362
 msgid "Connected"
 msgstr ""
+
+msgid "Connect"
+msgstr ""
+
+msgid "Disconnect"
+msgstr ""

@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <unordered_map>
 #include <filesystem>
+#include <memory>
 
 // wil
 #ifndef _DEBUG
