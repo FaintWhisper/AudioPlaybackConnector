@@ -5,7 +5,7 @@ constexpr auto BUFFER_SIZE = 4096;
 
 void DefaultSettings()
 {
-	g_reconnect = false;
+	g_reconnect = true;
 	g_lastDevices.clear();
 }
 
@@ -38,8 +38,11 @@ void LoadSettings()
 		g_lastDevices.reserve(lastDevices.Size());
 		for (const auto& i : lastDevices)
 		{
-			if (i.ValueType() == JsonValueType::String)
+			if (i.ValueType() == JsonValueType::String && !i.GetString().empty())
+			{
 				g_lastDevices.push_back(std::wstring(i.GetString()));
+				break;
+			}
 		}
 	}
 	CATCH_LOG();
@@ -53,9 +56,9 @@ void SaveSettings()
 		jsonObj.Insert(L"reconnect", JsonValue::CreateBooleanValue(g_reconnect));
 
 		JsonArray lastDevices;
-		for (const auto& i : g_audioPlaybackConnections)
+		for (const auto& deviceId : g_lastDevices)
 		{
-			lastDevices.Append(JsonValue::CreateStringValue(i.first));
+			lastDevices.Append(JsonValue::CreateStringValue(deviceId));
 		}
 		jsonObj.Insert(L"lastDevices", lastDevices);
 

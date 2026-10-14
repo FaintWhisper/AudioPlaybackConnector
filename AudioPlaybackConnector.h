@@ -13,6 +13,9 @@ namespace fs = std::filesystem;
 
 constexpr UINT WM_NOTIFYICON = WM_APP + 1;
 constexpr UINT WM_CONNECTDEVICE = WM_APP + 2;
+constexpr UINT_PTR STARTUP_CONNECT_TIMER = 1;
+constexpr UINT STARTUP_CONNECT_INTERVAL = 5000;
+constexpr unsigned int STARTUP_CONNECT_ATTEMPTS = 12;
 
 HINSTANCE g_hInst;
 HWND g_hWnd;
@@ -35,8 +38,12 @@ NOTIFYICONIDENTIFIER g_niid = {
 	.cbSize = sizeof(g_niid)
 };
 UINT WM_TASKBAR_CREATED = 0;
-bool g_reconnect = false;
+bool g_reconnect = true;
 std::vector<std::wstring> g_lastDevices;
+bool g_startupConnecting = false;
+bool g_startupAutoConnect = false;
+bool g_closing = false;
+unsigned int g_startupConnectAttempts = 0;
 
 #include "Util.hpp"
 #include "I18n.hpp"

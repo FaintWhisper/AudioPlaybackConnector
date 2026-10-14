@@ -37,7 +37,7 @@ msgid ""
 msgstr ""
 
 #: AudioPlaybackConnector.cpp:201
-msgid "Reconnect on next start"
+msgid "Auto-connect on startup"
 msgstr ""
 
 #: AudioPlaybackConnector.cpp:204 AudioPlaybackConnector.cpp:240

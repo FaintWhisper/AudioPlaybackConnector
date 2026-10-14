@@ -39,8 +39,8 @@ msgstr ""
 "仍然要退出吗？"
 
 #: AudioPlaybackConnector.cpp:201
-msgid "Reconnect on next start"
-msgstr "下次启动时重新连接"
+msgid "Auto-connect on startup"
+msgstr "启动时自动连接"
 
 #: AudioPlaybackConnector.cpp:204 AudioPlaybackConnector.cpp:240
 msgid "Exit"
