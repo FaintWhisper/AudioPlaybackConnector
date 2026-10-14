@@ -75,3 +75,12 @@ msgstr "连接"
 
 msgid "Disconnect"
 msgstr "断开连接"
+
+msgid "Disconnected"
+msgstr "未连接"
+
+msgid "Disconnecting"
+msgstr "正在断开连接"
+
+msgid "No audio devices found"
+msgstr "未找到音频设备"

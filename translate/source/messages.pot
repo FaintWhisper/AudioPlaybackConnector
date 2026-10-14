@@ -73,3 +73,12 @@ msgstr ""
 
 msgid "Disconnect"
 msgstr ""
+
+msgid "Disconnected"
+msgstr ""
+
+msgid "Disconnecting"
+msgstr ""
+
+msgid "No audio devices found"
+msgstr ""

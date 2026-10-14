@@ -28,15 +28,24 @@ Canvas g_xamlCanvas = nullptr;
 Flyout g_xamlFlyout = nullptr;
 MenuFlyout g_xamlMenu = nullptr;
 FocusState g_menuFocusState = FocusState::Unfocused;
-DevicePicker g_devicePicker = nullptr;
+MenuFlyout g_deviceFlyout = nullptr;
+MenuFlyoutItem g_connectionMenuItem = nullptr;
 struct PlaybackConnection
 {
 	DeviceInformation device;
 	AudioPlaybackConnection connection;
 	bool connected = false;
 	bool opening = false;
+	bool transportOpened = false;
+	bool restarting = false;
 };
 std::unordered_map<std::wstring, PlaybackConnection> g_audioPlaybackConnections;
+struct DeviceMenuEntry
+{
+	DeviceInformation device;
+	MenuFlyoutItem item;
+};
+std::unordered_map<std::wstring, DeviceMenuEntry> g_deviceMenuItems;
 HICON g_hIconConnected = nullptr;
 HICON g_hIconDisconnected = nullptr;
 NOTIFYICONDATAW g_nid = {
