@@ -84,3 +84,9 @@ msgstr "正在中斷連線"
 
 msgid "No audio devices found"
 msgstr "找不到音訊裝置"
+
+msgid "Boost PC volume +6 dB while phone plays"
+msgstr "手機播放時將電腦音量提高 6 dB"
+
+msgid "Automatic volume boost failed"
+msgstr "自動音量增強失敗"

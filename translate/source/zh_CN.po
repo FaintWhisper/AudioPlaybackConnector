@@ -84,3 +84,9 @@ msgstr "正在断开连接"
 
 msgid "No audio devices found"
 msgstr "未找到音频设备"
+
+msgid "Boost PC volume +6 dB while phone plays"
+msgstr "手机播放时将电脑音量提高 6 dB"
+
+msgid "Automatic volume boost failed"
+msgstr "自动音量增强失败"

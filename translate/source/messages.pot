@@ -82,3 +82,9 @@ msgstr ""
 
 msgid "No audio devices found"
 msgstr ""
+
+msgid "Boost PC volume +6 dB while phone plays"
+msgstr ""
+
+msgid "Automatic volume boost failed"
+msgstr ""

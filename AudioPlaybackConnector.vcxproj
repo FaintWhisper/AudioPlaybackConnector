@@ -331,6 +331,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="AudioPlaybackConnector.h" />
+    <ClInclude Include="AudioGain.hpp" />
     <ClInclude Include="Direct2DSvg.hpp" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="resource.h" />

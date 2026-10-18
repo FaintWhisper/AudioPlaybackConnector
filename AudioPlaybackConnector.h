@@ -1,6 +1,9 @@
 #pragma once
 
 #include "resource.h"
+#include <audiopolicy.h>
+#include <endpointvolume.h>
+#include <mmdeviceapi.h>
 
 using namespace winrt::Windows::Data::Json;
 using namespace winrt::Windows::Devices::Enumeration;
@@ -14,6 +17,7 @@ namespace fs = std::filesystem;
 constexpr UINT WM_NOTIFYICON = WM_APP + 1;
 constexpr UINT WM_CONNECTDEVICE = WM_APP + 2;
 constexpr UINT WM_CONNECTION_STATE_CHANGED = WM_APP + 3;
+constexpr UINT_PTR AUDIO_BOOST_TIMER = 1;
 
 struct ConnectionStateChange
 {
@@ -31,6 +35,7 @@ MenuFlyout g_xamlMenu = nullptr;
 FocusState g_menuFocusState = FocusState::Unfocused;
 MenuFlyout g_deviceFlyout = nullptr;
 MenuFlyoutItem g_connectionMenuItem = nullptr;
+ToggleMenuFlyoutItem g_boostMenuItem = nullptr;
 struct PlaybackConnection
 {
 	DeviceInformation device;
@@ -60,6 +65,14 @@ NOTIFYICONIDENTIFIER g_niid = {
 };
 UINT WM_TASKBAR_CREATED = 0;
 bool g_reconnect = true;
+bool g_boostWhilePlaying = false;
+struct SavedVolumeBoost
+{
+	std::wstring outputId;
+	float baselineDb = 0;
+	float appliedDb = 0;
+};
+SavedVolumeBoost g_savedVolumeBoost;
 std::vector<std::wstring> g_lastDevices;
 bool g_resolvingDevice = false;
 bool g_closing = false;
@@ -68,4 +81,5 @@ std::wstring g_connectionError;
 #include "Util.hpp"
 #include "I18n.hpp"
 #include "SettingsUtil.hpp"
+#include "AudioGain.hpp"
 #include "Direct2DSvg.hpp"

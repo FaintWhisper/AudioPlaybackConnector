@@ -6,6 +6,8 @@ constexpr auto BUFFER_SIZE = 4096;
 void DefaultSettings()
 {
 	g_reconnect = true;
+	g_boostWhilePlaying = false;
+	g_savedVolumeBoost = {};
 	g_lastDevices.clear();
 }
 
@@ -33,6 +35,13 @@ void LoadSettings()
 		std::wstring utf16 = Utf8ToUtf16(string);
 		auto jsonObj = JsonObject::Parse(utf16);
 		g_reconnect = jsonObj.Lookup(L"reconnect").GetBoolean();
+		g_boostWhilePlaying = jsonObj.GetNamedBoolean(L"boostWhilePlaying", false);
+		if (jsonObj.HasKey(L"boostOutputId") && jsonObj.HasKey(L"boostBaselineDb") && jsonObj.HasKey(L"boostAppliedDb"))
+		{
+			g_savedVolumeBoost.outputId = jsonObj.GetNamedString(L"boostOutputId");
+			g_savedVolumeBoost.baselineDb = static_cast<float>(jsonObj.GetNamedNumber(L"boostBaselineDb"));
+			g_savedVolumeBoost.appliedDb = static_cast<float>(jsonObj.GetNamedNumber(L"boostAppliedDb"));
+		}
 
 		auto lastDevices = jsonObj.Lookup(L"lastDevices").GetArray();
 		g_lastDevices.reserve(lastDevices.Size());
@@ -54,6 +63,13 @@ void SaveSettings()
 	{
 		JsonObject jsonObj;
 		jsonObj.Insert(L"reconnect", JsonValue::CreateBooleanValue(g_reconnect));
+		jsonObj.Insert(L"boostWhilePlaying", JsonValue::CreateBooleanValue(g_boostWhilePlaying));
+		if (!g_savedVolumeBoost.outputId.empty())
+		{
+			jsonObj.Insert(L"boostOutputId", JsonValue::CreateStringValue(g_savedVolumeBoost.outputId));
+			jsonObj.Insert(L"boostBaselineDb", JsonValue::CreateNumberValue(g_savedVolumeBoost.baselineDb));
+			jsonObj.Insert(L"boostAppliedDb", JsonValue::CreateNumberValue(g_savedVolumeBoost.appliedDb));
+		}
 
 		JsonArray lastDevices;
 		for (const auto& deviceId : g_lastDevices)

@@ -12,6 +12,8 @@ winrt::fire_and_forget ShowDeviceFlyout(Point);
 void UpdateConnectionUi();
 void SetupSvgIcon();
 void UpdateNotifyIcon();
+void UpdateAudioBoost();
+void ConfigureAudioBoost();
 bool HasOpenConnection();
 void OnConnectionStateChanged(const std::wstring&, AudioPlaybackConnection, AudioPlaybackConnectionState);
 
@@ -25,6 +27,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	UNREFERENCED_PARAMETER(nCmdShow);
 
 	g_hInst = hInstance;
+	const auto instanceHandle = CreateMutexW(nullptr, FALSE, L"Local\\AudioPlaybackConnector");
+	const auto instanceError = GetLastError();
+	wil::unique_handle instanceMutex(instanceHandle);
+	FAIL_FAST_LAST_ERROR_IF_NULL(instanceMutex);
+	if (instanceError == ERROR_ALREADY_EXISTS)
+		return EXIT_SUCCESS;
 
 	winrt::init_apartment(winrt::apartment_type::single_threaded);
 
@@ -80,6 +88,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	g_nid.hWnd = g_niid.hWnd = g_hWnd;
 	UpdateNotifyIcon();
+	ConfigureAudioBoost();
 
 	WM_TASKBAR_CREATED = RegisterWindowMessageW(L"TaskbarCreated");
 	LOG_LAST_ERROR_IF(WM_TASKBAR_CREATED == 0);
@@ -108,6 +117,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_DESTROY:
 		{
 			g_closing = true;
+			KillTimer(hWnd, AUDIO_BOOST_TIMER);
+			try
+			{
+				g_playbackVolumeBoost.Restore();
+			}
+			CATCH_LOG();
 			SaveSettings();
 			auto connections = std::move(g_audioPlaybackConnections);
 			for (const auto& connection : connections)
@@ -182,7 +197,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			std::unique_ptr<ConnectionStateChange> change(reinterpret_cast<ConnectionStateChange*>(lParam));
 			OnConnectionStateChanged(change->deviceId, change->connection, change->state);
+			UpdateAudioBoost();
 		}
+		break;
+	case WM_TIMER:
+		if (wParam == AUDIO_BOOST_TIMER)
+			UpdateAudioBoost();
 		break;
 	default:
 		if (WM_TASKBAR_CREATED && message == WM_TASKBAR_CREATED)
@@ -241,6 +261,15 @@ void SetupMenu()
 		SaveSettings();
 	});
 
+	g_boostMenuItem = ToggleMenuFlyoutItem();
+	g_boostMenuItem.Text(_(L"Boost PC volume +6 dB while phone plays"));
+	g_boostMenuItem.IsChecked(g_boostWhilePlaying);
+	g_boostMenuItem.Click([](const auto& sender, const auto&) {
+		g_boostWhilePlaying = sender.as<ToggleMenuFlyoutItem>().IsChecked();
+		ConfigureAudioBoost();
+		SaveSettings();
+	});
+
 	// https://docs.microsoft.com/en-us/windows/uwp/design/style/segoe-ui-symbol-font
 	FontIcon settingsIcon;
 	settingsIcon.Glyph(L"\xE713");
@@ -286,6 +315,7 @@ void SetupMenu()
 	menu.Items().Append(connectionItem);
 	menu.Items().Append(MenuFlyoutSeparator());
 	menu.Items().Append(autoConnectItem);
+	menu.Items().Append(g_boostMenuItem);
 	menu.Items().Append(MenuFlyoutSeparator());
 	menu.Items().Append(settingsItem);
 	menu.Items().Append(exitItem);
@@ -659,6 +689,52 @@ bool HasOpenConnection()
 	return false;
 }
 
+void UpdateAudioBoost()
+{
+	if (g_closing)
+		return;
+	const bool wasActive = g_playbackVolumeBoost.Active();
+	try
+	{
+		if (!wasActive && !g_savedVolumeBoost.outputId.empty())
+			g_playbackVolumeBoost.Recover();
+		std::wstring sourceName;
+		if (g_boostWhilePlaying && !g_lastDevices.empty())
+		{
+			auto it = g_audioPlaybackConnections.find(g_lastDevices.front());
+			if (it != g_audioPlaybackConnections.end() && it->second.connected && !it->second.restarting)
+				sourceName = it->second.device.Name();
+		}
+		g_playbackVolumeBoost.Update(sourceName);
+	}
+	catch (winrt::hresult_error const& ex)
+	{
+		LOG_CAUGHT_EXCEPTION();
+		g_boostWhilePlaying = false;
+		g_boostMenuItem.IsChecked(false);
+		KillTimer(g_hWnd, AUDIO_BOOST_TIMER);
+		try
+		{
+			g_playbackVolumeBoost.Restore();
+		}
+		CATCH_LOG();
+		g_connectionError = std::wstring(_(L"Automatic volume boost failed")) + L": " + ex.message().c_str();
+		SaveSettings();
+		UpdateNotifyIcon();
+	}
+	if (wasActive != g_playbackVolumeBoost.Active())
+		UpdateNotifyIcon();
+}
+
+void ConfigureAudioBoost()
+{
+	if (g_boostWhilePlaying)
+		FAIL_FAST_LAST_ERROR_IF(SetTimer(g_hWnd, AUDIO_BOOST_TIMER, 250, nullptr) == 0);
+	else
+		KillTimer(g_hWnd, AUDIO_BOOST_TIMER);
+	UpdateAudioBoost();
+}
+
 void UpdateNotifyIcon()
 {
 	UpdateConnectionUi();
@@ -667,6 +743,8 @@ void UpdateNotifyIcon()
 	std::wstring tooltip = _(L"AudioPlaybackConnector");
 	tooltip += L": ";
 	tooltip += connected ? _(L"Connected") : _(L"Disconnected");
+	if (g_playbackVolumeBoost.Active())
+		tooltip += L" (+6 dB)";
 	if (!g_connectionError.empty())
 		tooltip += L": " + g_connectionError;
 	wcsncpy_s(g_nid.szTip, tooltip.c_str(), _TRUNCATE);
