@@ -103,13 +103,13 @@ public:
 		SaveSettings();
 	}
 
-	void Update(const std::wstring& sourceName)
+	bool Update(const std::wstring& sourceName, bool boostEnabled)
 	{
 		if (sourceName.empty())
 		{
 			Restore();
 			m_lastAudio = 0;
-			return;
+			return false;
 		}
 		EnsureEnumerator();
 		winrt::com_ptr<IMMDevice> device;
@@ -133,24 +133,30 @@ public:
 		if (!m_lastAudio || now - m_lastAudio > 1000)
 		{
 			Restore();
-			return;
+			return false;
+		}
+		if (!boostEnabled)
+		{
+			Restore();
+			return true;
 		}
 		if (Active())
 		{
 			TrackManualVolume();
-			return;
+			return true;
 		}
 		float baselineDb = 0;
 		winrt::check_hresult(m_volume->GetMasterVolumeLevel(&baselineDb));
 		const float boostedDb = (std::min)(baselineDb + 6.0f, m_maximumDb);
 		if (boostedDb - baselineDb < 0.1f)
-			return;
+			return true;
 		g_savedVolumeBoost = { m_outputId, baselineDb, boostedDb };
 		SaveSettings();
 		winrt::check_hresult(m_volume->SetMasterVolumeLevel(g_savedVolumeBoost.appliedDb, nullptr));
 		m_boosted = true;
 		winrt::check_hresult(m_volume->GetMasterVolumeLevel(&g_savedVolumeBoost.appliedDb));
 		SaveSettings();
+		return true;
 	}
 };
 

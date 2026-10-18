@@ -86,5 +86,11 @@ msgstr ""
 msgid "Boost PC volume +6 dB while phone plays"
 msgstr ""
 
-msgid "Automatic volume boost failed"
+msgid "Automatic audio controls failed"
+msgstr ""
+
+msgid "Pause PC media when phone starts playing"
+msgstr ""
+
+msgid "Could not pause a PC media session"
 msgstr ""

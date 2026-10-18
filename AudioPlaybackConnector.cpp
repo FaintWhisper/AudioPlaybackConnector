@@ -12,8 +12,9 @@ winrt::fire_and_forget ShowDeviceFlyout(Point);
 void UpdateConnectionUi();
 void SetupSvgIcon();
 void UpdateNotifyIcon();
-void UpdateAudioBoost();
-void ConfigureAudioBoost();
+void UpdateAudioActions();
+void ConfigureAudioActions();
+winrt::fire_and_forget PausePcMedia();
 bool HasOpenConnection();
 void OnConnectionStateChanged(const std::wstring&, AudioPlaybackConnection, AudioPlaybackConnectionState);
 
@@ -88,7 +89,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	g_nid.hWnd = g_niid.hWnd = g_hWnd;
 	UpdateNotifyIcon();
-	ConfigureAudioBoost();
+	ConfigureAudioActions();
 
 	WM_TASKBAR_CREATED = RegisterWindowMessageW(L"TaskbarCreated");
 	LOG_LAST_ERROR_IF(WM_TASKBAR_CREATED == 0);
@@ -117,7 +118,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_DESTROY:
 		{
 			g_closing = true;
-			KillTimer(hWnd, AUDIO_BOOST_TIMER);
+			KillTimer(hWnd, AUDIO_ACTIVITY_TIMER);
 			try
 			{
 				g_playbackVolumeBoost.Restore();
@@ -197,12 +198,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			std::unique_ptr<ConnectionStateChange> change(reinterpret_cast<ConnectionStateChange*>(lParam));
 			OnConnectionStateChanged(change->deviceId, change->connection, change->state);
-			UpdateAudioBoost();
+			UpdateAudioActions();
 		}
 		break;
 	case WM_TIMER:
-		if (wParam == AUDIO_BOOST_TIMER)
-			UpdateAudioBoost();
+		if (wParam == AUDIO_ACTIVITY_TIMER)
+			UpdateAudioActions();
 		break;
 	default:
 		if (WM_TASKBAR_CREATED && message == WM_TASKBAR_CREATED)
@@ -266,7 +267,18 @@ void SetupMenu()
 	g_boostMenuItem.IsChecked(g_boostWhilePlaying);
 	g_boostMenuItem.Click([](const auto& sender, const auto&) {
 		g_boostWhilePlaying = sender.as<ToggleMenuFlyoutItem>().IsChecked();
-		ConfigureAudioBoost();
+		ConfigureAudioActions();
+		SaveSettings();
+	});
+
+	g_pauseMediaMenuItem = ToggleMenuFlyoutItem();
+	g_pauseMediaMenuItem.Text(_(L"Pause PC media when phone starts playing"));
+	g_pauseMediaMenuItem.IsChecked(g_pausePcMedia);
+	g_pauseMediaMenuItem.Click([](const auto& sender, const auto&) {
+		g_pausePcMedia = sender.as<ToggleMenuFlyoutItem>().IsChecked();
+		if (g_pausePcMedia)
+			g_phoneAudioPlaying = false;
+		ConfigureAudioActions();
 		SaveSettings();
 	});
 
@@ -316,6 +328,7 @@ void SetupMenu()
 	menu.Items().Append(MenuFlyoutSeparator());
 	menu.Items().Append(autoConnectItem);
 	menu.Items().Append(g_boostMenuItem);
+	menu.Items().Append(g_pauseMediaMenuItem);
 	menu.Items().Append(MenuFlyoutSeparator());
 	menu.Items().Append(settingsItem);
 	menu.Items().Append(exitItem);
@@ -689,7 +702,69 @@ bool HasOpenConnection()
 	return false;
 }
 
-void UpdateAudioBoost()
+winrt::fire_and_forget PausePcMedia()
+{
+	if (g_closing || !g_pausePcMedia || g_pausingPcMedia)
+		co_return;
+	g_pausingPcMedia = true;
+	const auto finished = wil::scope_exit([] { g_pausingPcMedia = false; });
+	using namespace winrt::Windows::Media::Control;
+	try
+	{
+		if (!g_mediaSessionManager)
+			g_mediaSessionManager = co_await GlobalSystemMediaTransportControlsSessionManager::RequestAsync();
+		bool failed = false;
+		for (const auto& session : g_mediaSessionManager.GetSessions())
+		{
+			if (g_closing || !g_pausePcMedia || !g_phoneAudioPlaying)
+				co_return;
+			try
+			{
+				const auto appId = session.SourceAppUserModelId();
+				// Phone-control apps can forward pause commands to the remote device.
+				if (StrStrIW(appId.c_str(), L"AudioPlaybackConnector") || StrStrIW(appId.c_str(), L"Bluetooth") ||
+					StrStrIW(appId.c_str(), L"Microsoft.YourPhone"))
+					continue;
+				const auto playback = session.GetPlaybackInfo();
+				if (playback.PlaybackStatus() == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing &&
+					playback.Controls().IsPauseEnabled())
+				{
+					if (!(co_await session.TryPauseAsync()))
+						failed = true;
+				}
+			}
+			catch (winrt::hresult_error const& ex)
+			{
+				if (ex.code() != RO_E_CLOSED && ex.code() != RPC_E_DISCONNECTED)
+				{
+					failed = true;
+					LOG_CAUGHT_EXCEPTION();
+				}
+			}
+		}
+		if (failed && !g_closing)
+		{
+			g_connectionError = _(L"Could not pause a PC media session");
+			UpdateNotifyIcon();
+		}
+	}
+	catch (winrt::hresult_error const& ex)
+	{
+		LOG_CAUGHT_EXCEPTION();
+		if (!g_closing)
+		{
+			g_pausePcMedia = false;
+			g_pauseMediaMenuItem.IsChecked(false);
+			if (!g_boostWhilePlaying)
+				KillTimer(g_hWnd, AUDIO_ACTIVITY_TIMER);
+			g_connectionError = std::wstring(_(L"Could not pause a PC media session")) + L": " + ex.message().c_str();
+			SaveSettings();
+			UpdateNotifyIcon();
+		}
+	}
+}
+
+void UpdateAudioActions()
 {
 	if (g_closing)
 		return;
@@ -699,26 +774,32 @@ void UpdateAudioBoost()
 		if (!wasActive && !g_savedVolumeBoost.outputId.empty())
 			g_playbackVolumeBoost.Recover();
 		std::wstring sourceName;
-		if (g_boostWhilePlaying && !g_lastDevices.empty())
+		if ((g_boostWhilePlaying || g_pausePcMedia) && !g_lastDevices.empty())
 		{
 			auto it = g_audioPlaybackConnections.find(g_lastDevices.front());
 			if (it != g_audioPlaybackConnections.end() && it->second.connected && !it->second.restarting)
 				sourceName = it->second.device.Name();
 		}
-		g_playbackVolumeBoost.Update(sourceName);
+		const bool wasPlaying = g_phoneAudioPlaying;
+		g_phoneAudioPlaying = g_playbackVolumeBoost.Update(sourceName, g_boostWhilePlaying);
+		if (g_pausePcMedia && g_phoneAudioPlaying && !wasPlaying)
+			PausePcMedia();
 	}
 	catch (winrt::hresult_error const& ex)
 	{
 		LOG_CAUGHT_EXCEPTION();
 		g_boostWhilePlaying = false;
+		g_pausePcMedia = false;
+		g_phoneAudioPlaying = false;
 		g_boostMenuItem.IsChecked(false);
-		KillTimer(g_hWnd, AUDIO_BOOST_TIMER);
+		g_pauseMediaMenuItem.IsChecked(false);
+		KillTimer(g_hWnd, AUDIO_ACTIVITY_TIMER);
 		try
 		{
 			g_playbackVolumeBoost.Restore();
 		}
 		CATCH_LOG();
-		g_connectionError = std::wstring(_(L"Automatic volume boost failed")) + L": " + ex.message().c_str();
+		g_connectionError = std::wstring(_(L"Automatic audio controls failed")) + L": " + ex.message().c_str();
 		SaveSettings();
 		UpdateNotifyIcon();
 	}
@@ -726,13 +807,13 @@ void UpdateAudioBoost()
 		UpdateNotifyIcon();
 }
 
-void ConfigureAudioBoost()
+void ConfigureAudioActions()
 {
-	if (g_boostWhilePlaying)
-		FAIL_FAST_LAST_ERROR_IF(SetTimer(g_hWnd, AUDIO_BOOST_TIMER, 250, nullptr) == 0);
+	if (g_boostWhilePlaying || g_pausePcMedia)
+		FAIL_FAST_LAST_ERROR_IF(SetTimer(g_hWnd, AUDIO_ACTIVITY_TIMER, 250, nullptr) == 0);
 	else
-		KillTimer(g_hWnd, AUDIO_BOOST_TIMER);
-	UpdateAudioBoost();
+		KillTimer(g_hWnd, AUDIO_ACTIVITY_TIMER);
+	UpdateAudioActions();
 }
 
 void UpdateNotifyIcon()

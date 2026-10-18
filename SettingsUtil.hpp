@@ -7,6 +7,7 @@ void DefaultSettings()
 {
 	g_reconnect = true;
 	g_boostWhilePlaying = false;
+	g_pausePcMedia = false;
 	g_savedVolumeBoost = {};
 	g_lastDevices.clear();
 }
@@ -36,6 +37,7 @@ void LoadSettings()
 		auto jsonObj = JsonObject::Parse(utf16);
 		g_reconnect = jsonObj.Lookup(L"reconnect").GetBoolean();
 		g_boostWhilePlaying = jsonObj.GetNamedBoolean(L"boostWhilePlaying", false);
+		g_pausePcMedia = jsonObj.GetNamedBoolean(L"pausePcMedia", false);
 		if (jsonObj.HasKey(L"boostOutputId") && jsonObj.HasKey(L"boostBaselineDb") && jsonObj.HasKey(L"boostAppliedDb"))
 		{
 			g_savedVolumeBoost.outputId = jsonObj.GetNamedString(L"boostOutputId");
@@ -64,6 +66,7 @@ void SaveSettings()
 		JsonObject jsonObj;
 		jsonObj.Insert(L"reconnect", JsonValue::CreateBooleanValue(g_reconnect));
 		jsonObj.Insert(L"boostWhilePlaying", JsonValue::CreateBooleanValue(g_boostWhilePlaying));
+		jsonObj.Insert(L"pausePcMedia", JsonValue::CreateBooleanValue(g_pausePcMedia));
 		if (!g_savedVolumeBoost.outputId.empty())
 		{
 			jsonObj.Insert(L"boostOutputId", JsonValue::CreateStringValue(g_savedVolumeBoost.outputId));

@@ -88,5 +88,11 @@ msgstr "未找到音频设备"
 msgid "Boost PC volume +6 dB while phone plays"
 msgstr "手机播放时将电脑音量提高 6 dB"
 
-msgid "Automatic volume boost failed"
-msgstr "自动音量增强失败"
+msgid "Automatic audio controls failed"
+msgstr "自动音频控制失败"
+
+msgid "Pause PC media when phone starts playing"
+msgstr "手机开始播放时暂停电脑媒体"
+
+msgid "Could not pause a PC media session"
+msgstr "无法暂停电脑媒体会话"
